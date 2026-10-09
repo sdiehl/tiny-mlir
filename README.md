@@ -26,21 +26,6 @@ uv run python emit.py gelu --stage optimized
 uv run python emit.py gelu --stage lowered
 ```
 
-## Development
-
-Install [dprint](https://dprint.dev/install/) for Markdown, JSON and TOML formatting.
-
-```bash
-uv sync --locked
-uv run pre-commit install
-uv run black .
-dprint fmt
-uv run pre-commit run --all-files
-uv run pytest
-```
-
-CI checks formatting, lint, the lockfile and pre-commit hooks, and runs tests and package builds on Linux and macOS.
-
 ## License
 
-MIT.
+MIT Licensed. Copyright 2026 Stephen Diehl. See [LICENSE](LICENSE) for details.
