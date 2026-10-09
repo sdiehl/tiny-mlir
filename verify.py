@@ -1,6 +1,7 @@
 """Compare every decoding step with the actual tiny-gpt2 repository."""
 
 import argparse
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -31,6 +32,7 @@ def verify(reference, directory):
                 str(capture),
             ],
             check=True,
+            env={key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"},
         )
         with np.load(capture) as expected:
             ids = tokenizer.encode(PROMPT).ids

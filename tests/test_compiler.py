@@ -142,3 +142,13 @@ def test_aliases_and_specialization():
     assert function.compile(x[:6], x[3:]) is compiled
     with pytest.raises(TypeError):
         compiled(x, x)
+
+
+def test_scalar_tensor_inputs_and_outputs():
+    x = np.array(3, dtype=np.float32)
+    doubled = jit(lambda x: x * 2)(x)
+    assert doubled.shape == ()
+    assert doubled == 6
+    reduced = jit(lambda x: x.sum())(np.arange(5, dtype=np.float32))
+    assert reduced.shape == ()
+    assert reduced == 10

@@ -68,7 +68,7 @@ class Compiled:
             self.engine = ExecutionEngine(self.lowered, opt_level=3)
 
     def __call__(self, *args):
-        arrays = [np.ascontiguousarray(a) for a in args]
+        arrays = [np.asarray(a, order="C") for a in args]
         if tuple(TensorType(a.shape, a.dtype) for a in arrays) != self.types:
             raise TypeError("Arguments do not match this compiled specialization")
         for index, bound in self.gathers:
