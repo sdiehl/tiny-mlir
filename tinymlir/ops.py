@@ -4,9 +4,14 @@ import numpy as np
 
 from .expr import causal_mask, exp, sqrt, tanh
 
+GELU_SCALE = np.sqrt(2 / np.pi)
+GELU_CUBIC_COEFFICIENT = 0.044715
+LAYER_NORM_EPSILON = 1e-5
+QKV_COMPONENTS = 3
+
 
 def gelu(x):
-    return 0.5 * x * (1 + tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * x**3)))
+    return 0.5 * x * (1 + tanh(GELU_SCALE * (x + GELU_CUBIC_COEFFICIENT * x**3)))
 
 
 def softmax(x):
@@ -17,7 +22,7 @@ def softmax(x):
 def layer_norm(x, gain, bias):
     centered = x - x.mean(axis=-1, keepdims=True)
     variance = (centered * centered).mean(axis=-1, keepdims=True)
-    return gain * centered / sqrt(variance + 1e-5) + bias
+    return gain * centered / sqrt(variance + LAYER_NORM_EPSILON) + bias
 
 
 def linear(x, weight, bias):
@@ -27,12 +32,12 @@ def linear(x, weight, bias):
 def attention(x, qkv_weight, qkv_bias, out_weight, out_bias, heads):
     packed = linear(x, qkv_weight, qkv_bias)
     length, width = x.shape
-    depth = width // heads
-    if width % heads:
+    if heads <= 0 or width % heads:
         raise ValueError("Embedding width must be divisible by head count")
+    depth = width // heads
     q, k, v = [
         packed[:, i * width : (i + 1) * width].reshape((length, heads, depth)).transpose((1, 0, 2))
-        for i in range(3)
+        for i in range(QKV_COMPONENTS)
     ]
     scores = (q @ k.transpose((0, 2, 1))) / np.sqrt(depth)
     probabilities = softmax(scores + causal_mask(length, packed.dtype))

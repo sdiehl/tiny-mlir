@@ -7,24 +7,27 @@ A small tensor compiler in Python using MLIR's builder interface. Python functio
 ```bash
 uv sync
 uv run python fetch_model.py model
-uv run python example.py
 ```
 
-Completes “Alan Turing theorized that computers would one day become” with 10 tokens. Python 3.12 and the MLIR bindings are pinned; no separate LLVM installation is needed. The supplied wheels support macOS and Linux on ARM64 and x86-64.
+```console
+$ uv run python example.py "Alan Turing theorized that computers would one day become" --tokens 10
+Alan Turing theorized that computers would one day become the most powerful machines on the planet.
+```
 
 ```bash
 # Compiler and numerical tests
 uv run pytest
 
 # Compare every decoding step with the original NumPy implementation
-# Requires a working tiny-gpt2 checkout, including its encoder files.
-uv run python verify.py --reference ../tiny-gpt2
+uv run python verify.py
 
 # Inspect tensor IR, fusion, and LLVM lowering
 uv run python emit.py gelu
 uv run python emit.py gelu --stage optimized
 uv run python emit.py gelu --stage lowered
 ```
+
+Verification downloads a pinned copy of the NumPy reference and tokenizer. Requires Git and network access.
 
 ## License
 

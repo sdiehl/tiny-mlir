@@ -8,13 +8,18 @@ from pathlib import Path
 import numpy as np
 from safetensors.numpy import load_file
 
+FIXTURE_PATH = Path(__file__).with_name("gpt2.json")
+CONFIG_FILENAME = "config.json"
+WEIGHTS_FILENAME = "model.safetensors"
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("reference", type=Path)
-    p.add_argument("model", type=Path)
-    p.add_argument("output", type=Path)
-    args = p.parse_args()
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("reference", type=Path)
+    parser.add_argument("model", type=Path)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("tokenizer", type=Path)
+    args = parser.parse_args()
     sys.path.insert(0, str(args.reference))
     from tinygpt2 import gpt2_ops as ops
     from tinygpt2.encoder import get_encoder
@@ -29,18 +34,18 @@ def main():
     )
 
     # Adapt the pinned checkpoint to the reference's parameter dataclasses. This avoids
-    # its loader's network request; the numerical operations are imported unchanged.
-    w = load_file(str(args.model / "model.safetensors"))
-    c = json.loads((args.model / "config.json").read_text())
+    # its loader's network request. The numerical operations are imported unchanged.
+    weights = load_file(str(args.model / WEIGHTS_FILENAME))
+    config = json.loads((args.model / CONFIG_FILENAME).read_text(encoding="utf-8"))
 
     def norm(p):
-        return LayerNormParams(w[p + ".weight"], w[p + ".bias"])
+        return LayerNormParams(weights[p + ".weight"], weights[p + ".bias"])
 
     def linear(p):
-        return LinearParams(w[p + ".weight"], w[p + ".bias"])
+        return LinearParams(weights[p + ".weight"], weights[p + ".bias"])
 
     blocks = []
-    for i in range(c["n_layer"]):
+    for i in range(config["n_layer"]):
         p = f"h.{i}"
         blocks.append(
             TransformerBlockParams(
@@ -52,19 +57,21 @@ def main():
                 ),
             )
         )
-    params = ModelParams(wte=w["wte.weight"], wpe=w["wpe.weight"], blocks=blocks, ln_f=norm("ln_f"))
-    encoder = get_encoder("", str(args.reference / "model"))
-    prompt = "Alan Turing theorized that computers would one day become"
-    ids = encoder.encode(prompt)
+    params = ModelParams(
+        wte=weights["wte.weight"], wpe=weights["wpe.weight"], blocks=blocks, ln_f=norm("ln_f")
+    )
+    encoder = get_encoder("", str(args.tokenizer))
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+    ids = encoder.encode(fixture["prompt"])
     results = {"input_ids": np.array(ids)}
     tokens = []
-    for step in range(10):
+    for step in range(len(fixture["output_ids"])):
         # Capture both residual outputs using the original operation implementations.
         x = params.wte[ids] + params.wpe[range(len(ids))]
         results[f"{step}/embedding"] = x
         for i, block in enumerate(params.blocks):
             a = ops.layer_norm(x, block.ln_1.g, block.ln_1.b)
-            x = x + ops.mha(a, block.attn.c_attn, block.attn.c_proj, c["n_head"])
+            x = x + ops.mha(a, block.attn.c_attn, block.attn.c_proj, config["n_head"])
             results[f"{step}/h.{i}.attention"] = x
             m = ops.layer_norm(x, block.ln_2.g, block.ln_2.b)
             x = x + ops.ffn(
@@ -74,7 +81,7 @@ def main():
         logits = ops.layer_norm(x, params.ln_f.g, params.ln_f.b) @ params.wte.T
         # Also run the reference's complete gpt2 function, so the trace adapter itself
         # cannot silently become a different reference model.
-        direct = gpt2(ids, params, c["n_head"])
+        direct = gpt2(ids, params, config["n_head"])
         np.testing.assert_array_equal(logits, direct)
         results[f"{step}/logits"] = direct[-1:]
         token = int(direct[-1].argmax())

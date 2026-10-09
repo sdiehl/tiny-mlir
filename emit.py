@@ -7,10 +7,20 @@ import numpy as np
 from tinymlir import jit
 from tinymlir.ops import gelu, softmax
 
-p = argparse.ArgumentParser()
-p.add_argument("operation", choices=["gelu", "softmax"])
-p.add_argument("--stage", choices=["module", "optimized", "lowered"], default="module")
-args = p.parse_args()
-function = jit({"gelu": gelu, "softmax": softmax}[args.operation])
-compiled = function.compile(np.zeros((2, 8), np.float32))
-print(getattr(compiled, args.stage))
+OPERATIONS = {"gelu": gelu, "softmax": softmax}
+STAGES = ("module", "optimized", "lowered")
+EXAMPLE_SHAPE = (2, 8)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("operation", choices=OPERATIONS)
+    parser.add_argument("--stage", choices=STAGES, default=STAGES[0])
+    args = parser.parse_args()
+    function = jit(OPERATIONS[args.operation])
+    compiled = function.compile(np.zeros(EXAMPLE_SHAPE, np.float32))
+    print(getattr(compiled, args.stage))
+
+
+if __name__ == "__main__":
+    main()

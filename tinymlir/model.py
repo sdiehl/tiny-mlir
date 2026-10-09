@@ -1,15 +1,23 @@
 """GPT-2 expressed as compositions of compiled tensor functions."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 from safetensors.numpy import load_file
 from tokenizers import Tokenizer
 
+from .checkpoint import (
+    CONFIG_FILENAME,
+    DEFAULT_MODEL_DIRECTORY,
+    TOKENIZER_FILENAME,
+    WEIGHTS_FILENAME,
+)
 from .expr import gather
 from .jit import jit
-from .ops import attention, gelu, layer_norm, linear
+from .ops import LAYER_NORM_EPSILON, QKV_COMPONENTS, attention, gelu, layer_norm, linear
 
 
 @jit
@@ -35,96 +43,138 @@ def project(x, gain, bias, words):
     return layer_norm(x[-1:], gain, bias) @ words.T
 
 
+ACTIVATION_FUNCTION = "gelu_new"
+FEEDFORWARD_EXPANSION = 4
+
+
+@dataclass(frozen=True)
+class ModelConfig:
+    width: int
+    heads: int
+    layers: int
+    context: int
+    vocabulary: int
+
+    @classmethod
+    def from_dict(cls, config):
+        return cls(
+            config["n_embd"],
+            config["n_head"],
+            config["n_layer"],
+            config["n_positions"],
+            config["vocab_size"],
+        )
+
+    def __post_init__(self):
+        if min(self.width, self.heads, self.layers, self.context, self.vocabulary) <= 0:
+            raise ValueError("Model dimensions must be positive")
+        if self.width % self.heads:
+            raise ValueError("Embedding width must be divisible by head count")
+
+
+class Parameters(NamedTuple):
+    weight: np.ndarray
+    bias: np.ndarray
+
+
+class Block(NamedTuple):
+    attention_norm: Parameters
+    attention_in: Parameters
+    attention_out: Parameters
+    feedforward_norm: Parameters
+    feedforward_in: Parameters
+    feedforward_out: Parameters
+
+
 class Model:
     def __init__(self, weights, config):
-        self.config = config
-        width, heads = config["n_embd"], config["n_head"]
-        if heads <= 0 or width % heads:
-            raise ValueError("Embedding width must be divisible by head count")
-        shapes = {
-            "wte.weight": (config["vocab_size"], width),
-            "wpe.weight": (config["n_positions"], width),
-            "ln_f.weight": (width,),
-            "ln_f.bias": (width,),
-        }
-        for i in range(config["n_layer"]):
-            for name, shape in [
-                ("ln_1", (width,)),
-                ("ln_2", (width,)),
-                ("attn.c_attn", (width, 3 * width)),
-                ("attn.c_proj", (width, width)),
-                ("mlp.c_fc", (width, 4 * width)),
-                ("mlp.c_proj", (4 * width, width)),
-            ]:
-                shapes[f"h.{i}.{name}.weight"] = shape
-                shapes[f"h.{i}.{name}.bias"] = (shape[-1],)
-        self.weights = {}
-        for name, shape in shapes.items():
+        self.config = ModelConfig.from_dict(config)
+        width = self.config.width
+
+        def array(name, shape):
             value = np.asarray(weights[name])
             if value.shape != shape or value.dtype != np.float32:
                 raise ValueError(f"{name} must have shape {shape} and dtype float32")
-            self.weights[name] = np.ascontiguousarray(value)
+            return np.ascontiguousarray(value)
+
+        def parameters(prefix, shape):
+            return Parameters(
+                array(f"{prefix}.weight", shape), array(f"{prefix}.bias", (shape[-1],))
+            )
+
+        self.words = array("wte.weight", (self.config.vocabulary, width))
+        self.positions = array("wpe.weight", (self.config.context, width))
+        self.final_norm = parameters("ln_f", (width,))
+        hidden_width = FEEDFORWARD_EXPANSION * width
+        self.blocks = tuple(
+            Block(
+                parameters(f"h.{index}.ln_1", (width,)),
+                parameters(f"h.{index}.attn.c_attn", (width, QKV_COMPONENTS * width)),
+                parameters(f"h.{index}.attn.c_proj", (width, width)),
+                parameters(f"h.{index}.ln_2", (width,)),
+                parameters(f"h.{index}.mlp.c_fc", (width, hidden_width)),
+                parameters(f"h.{index}.mlp.c_proj", (hidden_width, width)),
+            )
+            for index in range(self.config.layers)
+        )
 
     def __call__(self, tokens, trace=None):
         ids = np.asarray(tokens)
         if (
             ids.ndim != 1
-            or ids.dtype.kind not in "iu"
-            or not 0 < len(ids) <= self.config["n_positions"]
+            or not np.issubdtype(ids.dtype, np.integer)
+            or not 0 < len(ids) <= self.config.context
         ):
             raise ValueError("Expected a nonempty integer token sequence within the context limit")
-        if np.any(ids < 0) or np.any(ids >= self.config["vocab_size"]):
+        if np.any(ids < 0) or np.any(ids >= self.config.vocabulary):
             raise ValueError("Token ID outside the vocabulary")
-        w = self.weights
 
         def record(name, value):
             if trace is not None:
                 trace[name] = value.copy()
             return value
 
-        x = record("embedding", embed(ids.astype(np.int32), w["wte.weight"], w["wpe.weight"]))
-        for i in range(self.config["n_layer"]):
-            p = f"h.{i}."
+        x = record("embedding", embed(ids.astype(np.int32), self.words, self.positions))
+        for index, block in enumerate(self.blocks):
             x = record(
-                p + "attention",
+                f"h.{index}.attention",
                 attend(
                     x,
-                    w[p + "ln_1.weight"],
-                    w[p + "ln_1.bias"],
-                    w[p + "attn.c_attn.weight"],
-                    w[p + "attn.c_attn.bias"],
-                    w[p + "attn.c_proj.weight"],
-                    w[p + "attn.c_proj.bias"],
-                    heads=self.config["n_head"],
+                    *block.attention_norm,
+                    *block.attention_in,
+                    *block.attention_out,
+                    heads=self.config.heads,
                 ),
             )
             x = record(
-                p + "output",
+                f"h.{index}.output",
                 feedforward(
                     x,
-                    w[p + "ln_2.weight"],
-                    w[p + "ln_2.bias"],
-                    w[p + "mlp.c_fc.weight"],
-                    w[p + "mlp.c_fc.bias"],
-                    w[p + "mlp.c_proj.weight"],
-                    w[p + "mlp.c_proj.bias"],
+                    *block.feedforward_norm,
+                    *block.feedforward_in,
+                    *block.feedforward_out,
                 ),
             )
-        return record("logits", project(x, w["ln_f.weight"], w["ln_f.bias"], w["wte.weight"]))
+        return record("logits", project(x, *self.final_norm, self.words))
 
 
-def load_model(directory="model"):
+def load_model(directory: str | Path = DEFAULT_MODEL_DIRECTORY) -> tuple[Model, Tokenizer]:
     directory = Path(directory)
-    config = json.loads((directory / "config.json").read_text())
-    if config.get("activation_function") != "gelu_new" or config.get("layer_norm_epsilon") != 1e-5:
-        raise ValueError("Expected GPT-2 gelu_new activation and layer_norm_epsilon=1e-5")
-    model = Model(load_file(str(directory / "model.safetensors")), config)
-    return model, Tokenizer.from_file(str(directory / "tokenizer.json"))
+    config = json.loads((directory / CONFIG_FILENAME).read_text(encoding="utf-8"))
+    if (
+        config.get("activation_function") != ACTIVATION_FUNCTION
+        or config.get("layer_norm_epsilon") != LAYER_NORM_EPSILON
+    ):
+        raise ValueError(
+            f"Expected GPT-2 {ACTIVATION_FUNCTION} activation and epsilon={LAYER_NORM_EPSILON}"
+        )
+    model = Model(load_file(str(directory / WEIGHTS_FILENAME)), config)
+    return model, Tokenizer.from_file(str(directory / TOKENIZER_FILENAME))
 
 
-def generate(model, tokenizer, prompt, max_tokens):
+def generate(model: Model, tokenizer: Tokenizer, prompt: str, max_tokens: int) -> str:
     ids = tokenizer.encode(prompt).ids
-    if max_tokens < 0 or not ids or len(ids) + max_tokens > model.config["n_positions"]:
+    if max_tokens < 0 or not ids or len(ids) + max_tokens > model.config.context:
         raise ValueError("Prompt and generation must fit the model context")
     for _ in range(max_tokens):
         ids.append(int(np.argmax(model(ids)[0])))

@@ -1,12 +1,25 @@
+"""Complete a prompt using GPT-2 compiled through MLIR."""
+
+import argparse
+from pathlib import Path
+
+from tinymlir.checkpoint import DEFAULT_MODEL_DIRECTORY
 from tinymlir.model import generate, load_model
 
-print("Loading model parameters...")
-model, tokenizer = load_model()
+DEFAULT_GENERATION_LENGTH = 10
 
-example_prompts = [
-    ("Alan Turing theorized that computers would one day become", 10),
-]
 
-for prompt, max_tokens in example_prompts:
-    print(f"\nPrompt: {prompt}")
-    print(generate(model, tokenizer, prompt, max_tokens))
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("prompt", help="Text to complete")
+    parser.add_argument("--tokens", type=int, default=DEFAULT_GENERATION_LENGTH)
+    parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_DIRECTORY)
+    args = parser.parse_args()
+    if args.tokens < 0:
+        parser.error("--tokens must be nonnegative")
+    model, tokenizer = load_model(args.model)
+    print(generate(model, tokenizer, args.prompt, args.tokens))
+
+
+if __name__ == "__main__":
+    main()
