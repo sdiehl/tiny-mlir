@@ -27,7 +27,7 @@ uv run python emit.py gelu --stage optimized
 uv run python emit.py gelu --stage lowered
 ```
 
-Verification downloads a pinned copy of the NumPy reference and tokenizer. Requires Git and network access.
+Verification downloads a pinned copy of the [NumPy reference](https://github.com/sdiehl/tiny-gpt2) and [tokenizer](https://huggingface.co/openai-community/gpt2/tree/607a30d783dfa663caf39e06633721c8d4cfcd7e).
 
 ## License
 
