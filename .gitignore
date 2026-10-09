@@ -1,0 +1,13 @@
+.venv/
+.mlir-cache/
+model/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+*.safetensors
+*.so
+*.dylib
+*.bc
+.DS_Store

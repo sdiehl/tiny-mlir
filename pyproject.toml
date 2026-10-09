@@ -1,0 +1,30 @@
+[project]
+name = "tiny-mlir"
+version = "0.1.0"
+description = "A small MLIR compiler for transformer kernels and GPT-2 inference"
+authors = [{ name = "Stephen Diehl" }]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.5.3,<3",
+  "safetensors>=0.8,<0.9",
+  "huggingface-hub>=1.33,<2",
+  "tokenizers>=0.23.2,<0.24",
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "ruff>=0.15,<0.17"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tinymlir"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
