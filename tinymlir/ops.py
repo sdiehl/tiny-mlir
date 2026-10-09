@@ -1,6 +1,7 @@
 """Transformer mathematics, composed from tensor expressions."""
 
 import numpy as np
+
 from .expr import causal_mask, exp, sqrt, tanh
 
 
@@ -28,9 +29,11 @@ def attention(x, qkv_weight, qkv_bias, out_weight, out_bias, heads):
     length, width = x.shape
     depth = width // heads
     if width % heads:
-        raise ValueError('Embedding width must be divisible by head count')
-    q, k, v = [packed[:, i*width:(i+1)*width].reshape((length, heads, depth))
-               .transpose((1, 0, 2)) for i in range(3)]
+        raise ValueError("Embedding width must be divisible by head count")
+    q, k, v = [
+        packed[:, i * width : (i + 1) * width].reshape((length, heads, depth)).transpose((1, 0, 2))
+        for i in range(3)
+    ]
     scores = (q @ k.transpose((0, 2, 1))) / np.sqrt(depth)
     probabilities = softmax(scores + causal_mask(length, packed.dtype))
     context = (probabilities @ v).transpose((1, 0, 2)).reshape((length, width))

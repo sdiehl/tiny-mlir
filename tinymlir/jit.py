@@ -2,25 +2,26 @@
 
 import ctypes
 from functools import update_wrapper
+
 import numpy as np
 from mlir import ir
 from mlir.execution_engine import ExecutionEngine
 from mlir.passmanager import PassManager
 from mlir.runtime import get_ranked_memref_descriptor
+
 from .builder import Builder
 from .expr import Expr, TensorType
 
-
-OPTIMIZE = 'builtin.module(canonicalize,cse,linalg-fuse-elementwise-ops,canonicalize,cse)'
+OPTIMIZE = "builtin.module(canonicalize,cse,linalg-fuse-elementwise-ops,canonicalize,cse)"
 LOWER = (
-    'builtin.module('
-    'one-shot-bufferize{bufferize-function-boundaries},'
-    'convert-linalg-to-loops,'
-    'buffer-deallocation-pipeline,'
-    'expand-strided-metadata,lower-affine,'
-    'convert-scf-to-cf,convert-math-to-libm,convert-math-to-llvm,'
-    'convert-arith-to-llvm,convert-func-to-llvm,convert-cf-to-llvm,'
-    'finalize-memref-to-llvm,reconcile-unrealized-casts)'
+    "builtin.module("
+    "one-shot-bufferize{bufferize-function-boundaries},"
+    "convert-linalg-to-loops,"
+    "buffer-deallocation-pipeline,"
+    "expand-strided-metadata,lower-affine,"
+    "convert-scf-to-cf,convert-math-to-libm,convert-math-to-llvm,"
+    "convert-arith-to-llvm,convert-func-to-llvm,convert-cf-to-llvm,"
+    "finalize-memref-to-llvm,reconcile-unrealized-casts)"
 )
 
 
@@ -35,11 +36,24 @@ def clone_module(source):
 class Compiled:
     def __init__(self, function, types, static, optimize=True):
         self.types = types
-        inputs = tuple(Expr('input', typ, attr=i) for i, typ in enumerate(types))
+        inputs = tuple(Expr("input", typ, attr=i) for i, typ in enumerate(types))
         output = function(*inputs, **static)
         if not isinstance(output, Expr):
-            raise TypeError('A compiled function must return one tensor expression')
+            raise TypeError("A compiled function must return one tensor expression")
         self.result_type = output.type
+        self.gathers = []
+        visited = set()
+
+        def check(node):
+            if node in visited:
+                return
+            visited.add(node)
+            if node.op == "gather":
+                self.gathers.append((node.args[1].attr, node.args[0].shape[0]))
+            for arg in node.args:
+                check(arg)
+
+        check(output)
         self.context = ir.Context()
         with self.context, ir.Location.unknown():
             self.module = Builder().build(inputs, output)
@@ -56,16 +70,21 @@ class Compiled:
     def __call__(self, *args):
         arrays = [np.ascontiguousarray(a) for a in args]
         if tuple(TensorType(a.shape, a.dtype) for a in arrays) != self.types:
-            raise TypeError('Arguments do not match this compiled specialization')
+            raise TypeError("Arguments do not match this compiled specialization")
+        for index, bound in self.gathers:
+            if np.any(arrays[index] < 0) or np.any(arrays[index] >= bound):
+                raise ValueError("Gather index outside the table")
         # restrict on to_tensor requires distinct input storage. Duplicate/overlapping
         # inputs are copied at the boundary, leaving the function itself purely functional.
         for i, array in enumerate(arrays):
             if any(np.shares_memory(array, previous) for previous in arrays[:i]):
                 arrays[i] = array.copy()
         output = np.empty(self.result_type.shape, self.result_type.dtype)
-        pointers = [ctypes.pointer(ctypes.pointer(get_ranked_memref_descriptor(a)))
-                    for a in [*arrays, output]]
-        self.engine.invoke('kernel', *pointers)
+        pointers = [
+            ctypes.pointer(ctypes.pointer(get_ranked_memref_descriptor(a)))
+            for a in [*arrays, output]
+        ]
+        self.engine.invoke("kernel", *pointers)
         return output
 
 
