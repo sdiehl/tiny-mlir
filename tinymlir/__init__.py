@@ -1,7 +1,6 @@
-"""A small MLIR compiler for transformer kernels."""
+"""A small tensor compiler built with MLIR's Python interface."""
 
-from .compiler import CPU, Numpy
-from .kernels import Tensor, generate
-from .model import Model
+from .jit import jit
+from .expr import TensorType, exp, gather, sqrt, tanh
 
-__all__ = ["CPU", "Model", "Numpy", "Tensor", "generate"]
+__all__ = ['jit', 'TensorType', 'exp', 'gather', 'sqrt', 'tanh']

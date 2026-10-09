@@ -136,7 +136,7 @@ class CUDA:
             self.call("cuModuleLoadData", C.byref(module), C.cast(image, C.c_void_p))
             try:
                 self.call("cuModuleGetFunction", C.byref(fn), module, b"kernel")
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 self.call("cuModuleUnload", module)
                 raise
             self.functions[key] = (module, fn, output, work)

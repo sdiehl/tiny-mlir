@@ -5,9 +5,10 @@ description = "A small MLIR compiler for transformer kernels and GPT-2 inference
 authors = [{ name = "Stephen Diehl" }]
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-  "numpy>=2.5.3,<3",
+  "numpy>=2.1.2,<3",
+  "mlir-python-bindings==22.0.0.2025112901+9bae84b0",
   "safetensors>=0.8,<0.9",
   "huggingface-hub>=1.33,<2",
   "tokenizers>=0.23.2,<0.24",
@@ -28,3 +29,14 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.uv.sources]
+mlir-python-bindings = [
+  { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+  { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-macosx_11_0_x86_64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
+  { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+  { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' and (platform_machine == 'arm64' or platform_machine == 'x86_64')", "sys_platform == 'linux' and (platform_machine == 'aarch64' or platform_machine == 'x86_64')"]

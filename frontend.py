@@ -1,8 +1,8 @@
 import ast
-from typing import ClassVar
 import math
 import struct
 from dataclasses import dataclass
+from typing import ClassVar
 
 
 @dataclass(frozen=True)
