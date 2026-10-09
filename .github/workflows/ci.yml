@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Formatting, lint and hooks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.11.15"
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: dprint/check@9cb3a2b17a8e606d37aae341e49df3654933fc23 # v2.3
+        with:
+          dprint-version: "0.54.0"
+      - run: uv run --locked pre-commit run --all-files --show-diff-on-failure
+      - run: git diff --exit-code
+
+  tests:
+    name: Tests and build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.11.15"
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv pip check
+      - run: uv run --locked pytest -q
+      - run: uv build

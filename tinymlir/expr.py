@@ -149,7 +149,7 @@ class Expr:
         keys += (slice(None),) * (len(self.shape) - len(keys))
         if len(keys) != len(self.shape) or any(not isinstance(k, slice) for k in keys):
             raise TypeError("Use static slices; gather() handles tensor indices")
-        bounds = tuple(k.indices(d) for k, d in zip(keys, self.shape))
+        bounds = tuple(k.indices(d) for k, d in zip(keys, self.shape, strict=True))
         if any(step != 1 or stop <= start for start, stop, step in bounds):
             raise ValueError("Slices must be nonempty and have unit stride")
         shape = tuple(stop - start for start, stop, _ in bounds)

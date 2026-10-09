@@ -186,7 +186,7 @@ class Builder:
             function.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()
             block = function.add_entry_block()
             with ir.InsertionPoint(block):
-                for expr, argument in zip(inputs, block.arguments):
+                for expr, argument in zip(inputs, block.arguments[:-1], strict=True):
                     self.values[expr] = bufferization.ToTensorOp(
                         tensor_type(expr.type), argument, restrict=True
                     ).result

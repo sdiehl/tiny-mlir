@@ -1,0 +1,42 @@
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: uv-lock
+        name: uv lock --check
+        entry: uv lock --check
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+
+      - id: ruff
+        name: Ruff lint
+        entry: uv run --locked ruff check --fix
+        language: system
+        types: [python]
+
+      - id: black
+        name: Black
+        entry: uv run --locked black
+        language: system
+        types: [python]
+
+      - id: dprint
+        name: dprint fmt
+        entry: dprint fmt
+        language: system
+        files: \.(md|json|toml)$
+        pass_filenames: false
