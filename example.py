@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from tinymlir.checkpoint import DEFAULT_MODEL_DIRECTORY
+from tinymlir.jit import add_target_flags
 from tinymlir.model import generate, load_model
 
 DEFAULT_GENERATION_LENGTH = 10
@@ -14,10 +15,11 @@ def main() -> None:
     parser.add_argument("prompt", help="Text to complete")
     parser.add_argument("--tokens", type=int, default=DEFAULT_GENERATION_LENGTH)
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_DIRECTORY)
+    add_target_flags(parser)
     args = parser.parse_args()
     if args.tokens < 0:
         parser.error("--tokens must be nonnegative")
-    model, tokenizer = load_model(args.model)
+    model, tokenizer = load_model(args.model, args.target)
     print(generate(model, tokenizer, args.prompt, args.tokens))
 
 

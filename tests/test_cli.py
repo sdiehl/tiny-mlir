@@ -15,6 +15,6 @@ def test_example_arguments(monkeypatch, capsys, tmp_path):
         "sys.argv", ["example.py", "A supplied prompt", "--tokens", "7", "--model", str(tmp_path)]
     )
     example.main()
-    load_model.assert_called_once_with(tmp_path)
+    load_model.assert_called_once_with(tmp_path, "cpu")
     generate.assert_called_once_with(model, tokenizer, "A supplied prompt", 7)
     assert capsys.readouterr().out == "A supplied prompt completed\n"

@@ -12,6 +12,7 @@ import numpy as np
 from huggingface_hub import hf_hub_download
 
 from tinymlir.checkpoint import DEFAULT_MODEL_DIRECTORY, REPOSITORY, REVISION
+from tinymlir.jit import CPU, add_target_flags
 from tinymlir.model import load_model
 
 REFERENCE_REPOSITORY = "https://github.com/sdiehl/tiny-gpt2.git"
@@ -50,8 +51,8 @@ def prepare_tokenizer(directory: Path) -> None:
         shutil.copyfile(source, directory / target_name)
 
 
-def verify(directory: Path, reference: Path | None = None) -> None:
-    model, tokenizer = load_model(directory)
+def verify(directory: Path, reference: Path | None = None, target: str = CPU) -> None:
+    model, tokenizer = load_model(directory, target)
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory() as temporary:
         workspace = Path(temporary)
@@ -123,8 +124,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reference", type=Path, help="Use a local tiny-gpt2 checkout instead")
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_DIRECTORY)
+    add_target_flags(parser)
     args = parser.parse_args()
-    verify(args.model, args.reference)
+    verify(args.model, args.reference, args.target)
 
 
 if __name__ == "__main__":

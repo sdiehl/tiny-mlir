@@ -9,6 +9,7 @@ import numpy as np
 from safetensors.numpy import load_file
 from tokenizers import Tokenizer
 
+from . import gpu
 from .checkpoint import (
     CONFIG_FILENAME,
     DEFAULT_MODEL_DIRECTORY,
@@ -16,7 +17,7 @@ from .checkpoint import (
     WEIGHTS_FILENAME,
 )
 from .expr import gather
-from .jit import jit
+from .jit import CPU, GPU, jit
 from .ops import LAYER_NORM_EPSILON, QKV_COMPONENTS, attention, gelu, layer_norm, linear
 
 
@@ -87,15 +88,17 @@ class Block(NamedTuple):
 
 
 class Model:
-    def __init__(self, weights, config):
+    def __init__(self, weights, config, target=CPU):
         self.config = ModelConfig.from_dict(config)
+        self.target = target
         width = self.config.width
 
         def array(name, shape):
             value = np.asarray(weights[name])
             if value.shape != shape or value.dtype != np.float32:
                 raise ValueError(f"{name} must have shape {shape} and dtype float32")
-            return np.ascontiguousarray(value)
+            # Weights stay resident in device memory across every call.
+            return gpu.device(value) if target == GPU else np.ascontiguousarray(value)
 
         def parameters(prefix, shape):
             return Parameters(
@@ -134,7 +137,10 @@ class Model:
                 trace[name] = value.copy()
             return value
 
-        x = record("embedding", embed(ids.astype(np.int32), self.words, self.positions))
+        target = self.target
+        x = record(
+            "embedding", embed(ids.astype(np.int32), self.words, self.positions, target=target)
+        )
         for index, block in enumerate(self.blocks):
             x = record(
                 f"h.{index}.attention",
@@ -144,6 +150,7 @@ class Model:
                     *block.attention_in,
                     *block.attention_out,
                     heads=self.config.heads,
+                    target=target,
                 ),
             )
             x = record(
@@ -153,12 +160,15 @@ class Model:
                     *block.feedforward_norm,
                     *block.feedforward_in,
                     *block.feedforward_out,
+                    target=target,
                 ),
             )
-        return record("logits", project(x, *self.final_norm, self.words))
+        return record("logits", project(x, *self.final_norm, self.words, target=target))
 
 
-def load_model(directory: str | Path = DEFAULT_MODEL_DIRECTORY) -> tuple[Model, Tokenizer]:
+def load_model(
+    directory: str | Path = DEFAULT_MODEL_DIRECTORY, target: str = CPU
+) -> tuple[Model, Tokenizer]:
     directory = Path(directory)
     config = json.loads((directory / CONFIG_FILENAME).read_text(encoding="utf-8"))
     if (
@@ -168,7 +178,7 @@ def load_model(directory: str | Path = DEFAULT_MODEL_DIRECTORY) -> tuple[Model, 
         raise ValueError(
             f"Expected GPT-2 {ACTIVATION_FUNCTION} activation and epsilon={LAYER_NORM_EPSILON}"
         )
-    model = Model(load_file(str(directory / WEIGHTS_FILENAME)), config)
+    model = Model(load_file(str(directory / WEIGHTS_FILENAME)), config, target)
     return model, Tokenizer.from_file(str(directory / TOKENIZER_FILENAME))
 
 

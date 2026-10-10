@@ -1,5 +1,6 @@
 """Shape-specialized tracing, MLIR passes, and native execution."""
 
+import argparse
 import ctypes
 from collections.abc import Callable
 from functools import update_wrapper
@@ -10,8 +11,13 @@ from mlir.execution_engine import ExecutionEngine
 from mlir.passmanager import PassManager
 from mlir.runtime import get_ranked_memref_descriptor
 
+from . import gpu
 from .builder import KERNEL_NAME, Builder
 from .expr import Expr, Op, TensorType
+
+CPU = "cpu"
+GPU = "gpu"
+TARGETS = (CPU, GPU)
 
 OPTIMIZATION_PIPELINE = (
     "builtin.module(canonicalize,cse,linalg-fuse-elementwise-ops,canonicalize,cse)"
@@ -40,9 +46,17 @@ def clone_module(source: ir.Module) -> ir.Module:
 
 class Compiled:
     def __init__(
-        self, function: Callable, types: tuple[TensorType, ...], static: dict, optimize=True
+        self,
+        function: Callable,
+        types: tuple[TensorType, ...],
+        static: dict,
+        optimize=True,
+        target=CPU,
     ):
+        if target not in TARGETS:
+            raise ValueError(f"Unknown target {target!r}")
         self.types = types
+        self.target = target
         inputs = tuple(Expr(Op.INPUT, typ, attr=i) for i, typ in enumerate(types))
         output = function(*inputs, **static)
         if not isinstance(output, Expr):
@@ -70,9 +84,18 @@ class Compiled:
                 PassManager.parse(OPTIMIZATION_PIPELINE).run(self.optimized.operation)
             self.optimized.operation.verify()
             self.lowered = clone_module(self.optimized)
-            PassManager.parse(LOWERING_PIPELINE).run(self.lowered.operation)
+            if target == GPU:
+                gpu.lower(self.lowered)
+            else:
+                PassManager.parse(LOWERING_PIPELINE).run(self.lowered.operation)
             self.lowered.operation.verify()
-            self.engine = ExecutionEngine(self.lowered, opt_level=LLVM_OPTIMIZATION_LEVEL)
+            self.engine = ExecutionEngine(
+                self.lowered,
+                opt_level=LLVM_OPTIMIZATION_LEVEL,
+                shared_libs=[str(gpu.RUNTIME)] if target == GPU else [],
+            )
+            # Global constructors load the embedded PTX modules.
+            self.engine.initialize()
 
     def __call__(self, *args):
         arrays = [np.asarray(a, order="C") for a in args]
@@ -86,7 +109,11 @@ class Compiled:
         for i, array in enumerate(arrays):
             if any(np.shares_memory(array, previous) for previous in arrays[:i]):
                 arrays[i] = array.copy()
-        output = np.empty(self.result_type.shape, self.result_type.dtype)
+        if self.target == GPU:
+            arrays = [gpu.device(a) for a in arrays]
+            output = gpu.empty(self.result_type.shape, self.result_type.dtype)
+        else:
+            output = np.empty(self.result_type.shape, self.result_type.dtype)
         pointers = [
             ctypes.pointer(ctypes.pointer(get_ranked_memref_descriptor(a)))
             for a in [*arrays, output]
@@ -101,17 +128,23 @@ class Jit:
         self.function = function
         self.specializations = {}
 
-    def compile(self, *args, **static) -> Compiled:
+    def compile(self, *args, target=CPU, **static) -> Compiled:
         types = tuple(TensorType(a.shape, a.dtype) for a in args)
-        key = (types, tuple(sorted(static.items())))
+        key = (types, tuple(sorted(static.items())), target)
         if key not in self.specializations:
-            self.specializations[key] = Compiled(self.function, types, static)
+            self.specializations[key] = Compiled(self.function, types, static, target=target)
         return self.specializations[key]
 
-    def __call__(self, *args, **static):
+    def __call__(self, *args, target=CPU, **static):
         if any(isinstance(a, Expr) for a in args):
             return self.function(*args, **static)
-        return self.compile(*args, **static)(*args)
+        return self.compile(*args, target=target, **static)(*args)
+
+
+def add_target_flags(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--cpu", dest="target", action="store_const", const=CPU, default=CPU)
+    group.add_argument("--gpu", dest="target", action="store_const", const=GPU, help="NVIDIA")
 
 
 def jit(function: Callable) -> Jit:

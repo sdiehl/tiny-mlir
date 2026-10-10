@@ -262,17 +262,17 @@ requires-dist = [
 [[package]]
 name = "mlir-python-bindings"
 version = "22.0.0.2025112901+9bae84b0"
-source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
+source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl" }
 resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "platform_machine == 'aarch64' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "ml-dtypes", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "numpy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "pyyaml", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "ml-dtypes", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "numpy", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "pyyaml", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6626b3f533100be141021b40dedf1d60c0db4acccf366e7bb797a61de16d6718" },
+    { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:ad385b355dd23e8a6ee39553889bcf057f42859a4948d1a9405cfa370d2ed65f" },
 ]
 
 [package.metadata]
@@ -285,18 +285,18 @@ requires-dist = [
 
 [[package]]
 name = "mlir-python-bindings"
-version = "22.0.0.2025112901+9bae84b0"
-source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl" }
+version = "22.0.0.2025112901+cuda.9bae84b0"
+source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2Bcuda.9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }
 resolution-markers = [
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
+    "platform_machine == 'x86_64' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "ml-dtypes", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
-    { name = "numpy", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
-    { name = "pyyaml", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "ml-dtypes", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "numpy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "pyyaml", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:ad385b355dd23e8a6ee39553889bcf057f42859a4948d1a9405cfa370d2ed65f" },
+    { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2Bcuda.9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3b683430d2fc6e33b193c04f0f3dba243dfc02dba4f70cf520b2b9668c8854a6" },
 ]
 
 [package.metadata]
@@ -339,6 +339,14 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9b/b4/e3c7e6fab0f77fff6194afa173d1f2342073d91b1d3b4b30b17c3fb4407a/numpy-2.1.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6d95f286b8244b3649b477ac066c6906fbb2905f8ac19b170e2175d3d799f4df", size = 16041825, upload-time = "2024-10-05T18:36:20.729Z" },
     { url = "https://files.pythonhosted.org/packages/e9/50/6828e66a78aa03147c111f84d55f33ce2dde547cb578d6744a3b06a0124b/numpy-2.1.2-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:ab4754d432e3ac42d33a269c8567413bdb541689b02d93788af4131018cbf366", size = 16409541, upload-time = "2024-10-05T18:36:45.743Z" },
     { url = "https://files.pythonhosted.org/packages/bf/72/66af7916d9c3c6dbfbc8acdd4930c65461e1953374a2bc43d00f948f004a/numpy-2.1.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e585c8ae871fd38ac50598f4763d73ec5497b0de9a0ab4ef5b69f01c6a046142", size = 14081134, upload-time = "2024-10-05T18:37:07.433Z" },
+]
+
+[[package]]
+name = "nvidia-cuda-nvcc-cu12"
+version = "12.9.86"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/48/b54a06168a2190572a312bfe4ce443687773eb61367ced31e064953dd2f7/nvidia_cuda_nvcc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:5d6a0d32fdc7ea39917c20065614ae93add6f577d840233237ff08e9a38f58f0", size = 40546229, upload-time = "2025-06-05T20:01:53.357Z" },
 ]
 
 [[package]]
@@ -492,9 +500,10 @@ dependencies = [
     { name = "huggingface-hub", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "mlir-python-bindings", version = "22.0.0.2025112901+9bae84b0", source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-macosx_11_0_arm64.whl" }, marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "mlir-python-bindings", version = "22.0.0.2025112901+9bae84b0", source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-macosx_11_0_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "mlir-python-bindings", version = "22.0.0.2025112901+9bae84b0", source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "mlir-python-bindings", version = "22.0.0.2025112901+9bae84b0", source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl" }, marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "mlir-python-bindings", version = "22.0.0.2025112901+cuda.9bae84b0", source = { url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2Bcuda.9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "numpy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-cuda-nvcc-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "safetensors", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "tokenizers", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
@@ -510,12 +519,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=1.33,<2" },
-    { name = "mlir-python-bindings", marker = "(platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')", specifier = "==22.0.0.2025112901+9bae84b0" },
+    { name = "mlir-python-bindings", marker = "(platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')", specifier = "==22.0.0.2025112901" },
     { name = "mlir-python-bindings", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-macosx_11_0_arm64.whl" },
     { name = "mlir-python-bindings", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-macosx_11_0_x86_64.whl" },
     { name = "mlir-python-bindings", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'", url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_35_aarch64.whl" },
-    { name = "mlir-python-bindings", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2B9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
+    { name = "mlir-python-bindings", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://github.com/makslevental/mlir-wheels/releases/download/latest/mlir_python_bindings-22.0.0.2025112901%2Bcuda.9bae84b0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl" },
     { name = "numpy", specifier = ">=2.1.2,<3" },
+    { name = "nvidia-cuda-nvcc-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=12.4,<13" },
     { name = "safetensors", specifier = ">=0.8,<0.9" },
     { name = "tokenizers", specifier = ">=0.23.2,<0.24" },
 ]
