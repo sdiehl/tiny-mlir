@@ -1,5 +1,9 @@
+import subprocess
+
 import numpy as np
 import pytest
+from mlir import ir
+from mlir.dialects.gpu import ObjectAttr
 from test_compiler import names
 
 from tinymlir import gather, gpu, jit
@@ -46,11 +50,24 @@ def test_gpu_matches_cpu(case):
     assert gpu.device(actual) is actual
 
 
-@pytest.mark.skipif(not gpu.RUNTIME.exists(), reason="needs the CUDA build of MLIR")
+@pytest.mark.skipif(not gpu.toolkit(), reason="needs the CUDA build of MLIR and ptxas")
 @pytest.mark.parametrize("case", CASES)
-def test_kernels_compile_to_ptx(case):
+def test_ptxas_accepts_kernels(case, tmp_path):
     function, args, static = CASES[case]
     compiled = jit(function).compile(*args, **static)
     with compiled.context:
         gpu.lower(compiled.optimized)
-    assert ".entry kernel_kernel" in str(compiled.optimized)
+        binaries = []
+        compiled.optimized.operation.walk(
+            lambda op: (op.name == "gpu.binary" and binaries.append(op)) or ir.WalkResult.ADVANCE
+        )
+        modules = [ObjectAttr(o).object for op in binaries for o in op.attributes["objects"]]
+    assert modules
+    for index, ptx in enumerate(modules):
+        source = tmp_path / f"{index}.ptx"
+        source.write_bytes(ptx)
+        ptxas = gpu.toolkit() / "bin" / "ptxas"
+        subprocess.run(
+            [ptxas, f"--gpu-name={gpu.CHIP}", source, "-o", tmp_path / f"{index}.cubin"],
+            check=True,
+        )
