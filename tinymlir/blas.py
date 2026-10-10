@@ -16,7 +16,7 @@ def locate():
     for name in CANDIDATES:
         path = name if name.startswith("/") else ctypes.util.find_library(name)
         try:
-            library = ctypes.CDLL(path) if path else None
+            library = ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL) if path else None
         except OSError:
             continue
         if hasattr(library, "cblas_sgemm"):
