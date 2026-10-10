@@ -32,10 +32,22 @@ def test_every_loop_becomes_a_kernel(case):
     compiled = jit(function).compile(*args, **static)
     with compiled.context:
         gpu.outline(compiled.optimized)
-    operations = names(compiled.optimized)
-    host = operations[: operations.index("gpu.module")]
+    functions = [
+        op for op in compiled.optimized.body.operations if op.operation.name == "func.func"
+    ]
+    host = [name for op in functions for name in names(op)]
     assert "gpu.launch_func" in host
     assert not [op for op in host if op.startswith(("scf.", "linalg.", "memref.alloc"))]
+
+
+@pytest.mark.parametrize("case", ["matmul", "attention"])
+def test_matmuls_stage_tiles_in_shared_memory(case):
+    function, args, static = CASES[case]
+    compiled = jit(function).compile(*args, **static)
+    with compiled.context:
+        gpu.outline(compiled.optimized)
+    assert "#gpu.address_space<workgroup>" in str(compiled.optimized)
+    assert "gpu.barrier" in names(compiled.optimized)
 
 
 @pytest.mark.skipif(not gpu.available(), reason="needs an NVIDIA GPU")
