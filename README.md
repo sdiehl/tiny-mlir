@@ -15,7 +15,7 @@ uv run pytest
 
 ## GPU
 
-Requires Linux x86_64 and an NVIDIA driver.
+Requires Linux x86_64, an NVIDIA driver, and a GPU of compute capability sm_75 (Turing) or newer.
 
 ```bash
 uv sync
