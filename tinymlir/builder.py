@@ -1,7 +1,6 @@
 """Lower typed expressions to tensor and linalg operations using MLIR builders."""
 
-from math import prod
-
+import numpy as np
 from mlir import ir
 from mlir.dialects import arith, bufferization, func, linalg, math, tensor
 
@@ -102,7 +101,6 @@ class Builder:
 
     def reshape(self, expr, operand):
         source_shape = expr.args[0].shape
-        typ = element_type(expr.dtype)
         if not source_shape or not expr.shape:
             # Rank-zero tensors and unit tensors have the same single element.
             rank = len(expr.shape)
@@ -111,14 +109,11 @@ class Builder:
                 ir.AffineMap.get_identity(rank),
             ]
             return self.generic([operand], empty(expr.type), maps, lambda x: x)
-        if len(source_shape) > 1:
-            flat = ir.RankedTensorType.get([prod(source_shape)], typ)
-            operand = tensor.CollapseShapeOp(flat, operand, [list(range(len(source_shape)))]).result
-        if len(expr.shape) > 1:
-            operand = tensor.ExpandShapeOp(
-                tensor_type(expr.type), operand, [list(range(len(expr.shape)))], [], expr.shape
-            ).result
-        return operand
+        # A shape operand keeps fusion from folding the reshape into a neighbouring matmul,
+        # which would turn a BLAS call back into scalar loops.
+        shape = ir.DenseElementsAttr.get(np.asarray(expr.shape, np.int64))
+        shape = arith.ConstantOp(shape.type, shape).result
+        return tensor.ReshapeOp(tensor_type(expr.type), operand, shape).result
 
     def lower(self, expr):
         if expr in self.values:

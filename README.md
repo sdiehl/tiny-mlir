@@ -14,6 +14,10 @@ $ uv run python example.py "Alan Turing theorized that computers would one day b
 Alan Turing theorized that computers would one day become the most powerful machines on the planet.
 ```
 
+On the CPU every `linalg.matmul` is handed to the system BLAS (Accelerate on macOS, OpenBLAS on Linux) after bufferization, which is where NumPy gets its speed too; without a BLAS the matmuls lower to plain loops.
+
+Pass `--fused` to compile the entire forward pass into one MLIR kernel. The traced function in `tinymlir/model.py` is the NumPy reference written as is: `np.mean`, `np.var`, `np.split`, `np.triu` masks, integer indexing and nested parameter tuples all trace, and captured arrays become trailing kernel arguments. Sequence lengths are padded to a power of two so decoding compiles a handful of kernels rather than one per token. The default splits the model into one kernel per sublayer, which compiles in well under a second each.
+
 Pass `--gpu` to `example.py`, `verify.py` or `emit.py` to target an NVIDIA GPU instead of the CPU (the default, also `--cpu`). Parallel loops are tiled onto blocks and threads, outlined into `gpu.module` kernels and compiled to PTX, which the driver JIT compiles at load. Buffers and weights live in CUDA managed memory. This needs Linux x86_64 and an NVIDIA driver, where the locked dependencies already include the CUDA build of MLIR and libdevice.
 
 ```bash

@@ -51,8 +51,10 @@ def prepare_tokenizer(directory: Path) -> None:
         shutil.copyfile(source, directory / target_name)
 
 
-def verify(directory: Path, reference: Path | None = None, target: str = CPU) -> None:
-    model, tokenizer = load_model(directory, target)
+def verify(
+    directory: Path, reference: Path | None = None, target: str = CPU, fused: bool = False
+) -> None:
+    model, tokenizer = load_model(directory, target, fused)
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory() as temporary:
         workspace = Path(temporary)
@@ -126,7 +128,7 @@ def main() -> None:
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_DIRECTORY)
     add_target_flags(parser)
     args = parser.parse_args()
-    verify(args.model, args.reference, args.target)
+    verify(args.model, args.reference, args.target, args.fused)
 
 
 if __name__ == "__main__":
