@@ -29,10 +29,15 @@ KERNEL_PIPELINE = (
 )
 
 
-def llvm_pipeline():
+def toolkit() -> Path | None:
     # libdevice supplies exp, tanh and friends; NVIDIA's pip package ships it with ptxas.
-    spec = find_spec("nvidia.cuda_nvcc")
-    toolkit = f" toolkit={spec.submodule_search_locations[0]}" if spec else ""
+    spec = find_spec("nvidia") and find_spec("nvidia.cuda_nvcc")
+    return Path(spec.submodule_search_locations[0]) if spec else None
+
+
+def llvm_pipeline():
+    path = toolkit()
+    option = f" toolkit={path}" if path else ""
     return (
         "builtin.module("
         "expand-strided-metadata,lower-affine,convert-scf-to-cf,"
@@ -41,7 +46,7 @@ def llvm_pipeline():
         "gpu-to-llvm,finalize-memref-to-llvm,"
         "convert-arith-to-llvm,convert-func-to-llvm,convert-cf-to-llvm,convert-index-to-llvm,"
         "reconcile-unrealized-casts,"
-        f"gpu-module-to-binary{{format=isa{toolkit}}})"
+        f"gpu-module-to-binary{{format=isa{option}}})"
     )
 
 
