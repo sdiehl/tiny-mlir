@@ -1,6 +1,6 @@
 # tiny-mlir
 
-A small tensor compiler in Python using MLIR's builder interface. Python functions become typed tensor graphs, then `linalg` operations which MLIR fuses, bufferizes and lowers to native CPU code or NVIDIA GPU kernels. The example runs pretrained GPT-2.
+A small tensor compiler in Python, in under 1500 lines, using MLIR's builder interface. Python functions become typed tensor graphs, then `linalg` operations which MLIR fuses, bufferizes and lowers to native CPU code or NVIDIA GPU kernels. The example runs pretrained GPT-2.
 
 ## CPU
 
@@ -16,6 +16,8 @@ uv run pytest
 ## GPU
 
 Requires Linux x86_64, an NVIDIA driver, and a GPU of compute capability sm_75 (Turing) or newer.
+
+Matrix multiplications run as a shared-memory tiled kernel, and the remaining loops are mapped to CUDA kernels over managed memory.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sdiehl/tiny-mlir/blob/main/Colab.ipynb)
 
