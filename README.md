@@ -1,6 +1,8 @@
 # tiny-mlir
 
-A small tensor compiler in Python, in under 1500 lines, using MLIR's builder interface. Python functions become typed tensor graphs, then `linalg` operations which MLIR fuses, bufferizes and lowers to native CPU code or NVIDIA GPU kernels. The example runs pretrained GPT-2.
+A small CPU/GPU tensor compiler in under 1500 lines of Python using [MLIR](https://mlir.llvm.org).
+
+Python functions get `@jit` compiled (Numba-style) and become typed tensor graphs, then `linalg` operations which MLIR fuses, tiles, bufferizes and lowers to native CPU code or NVIDIA GPU kernels. The motivating example jits a fused forward pass pretrained GPT-2 kernel.
 
 ## CPU
 
