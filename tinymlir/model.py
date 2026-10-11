@@ -9,7 +9,7 @@ import numpy as np
 from safetensors.numpy import load_file
 from tokenizers import Tokenizer
 
-from . import gpu
+from . import fused, gpu
 from .checkpoint import (
     CONFIG_FILENAME,
     DEFAULT_MODEL_DIRECTORY,
@@ -87,10 +87,18 @@ class Block(NamedTuple):
     feedforward_out: Parameters
 
 
+class Weights(NamedTuple):
+    words: np.ndarray
+    positions: np.ndarray
+    blocks: tuple[Block, ...]
+    final_norm: Parameters
+
+
 class Model:
-    def __init__(self, weights, config, target=CPU):
+    def __init__(self, weights, config, target=CPU, fused=False):
         self.config = ModelConfig.from_dict(config)
         self.target = target
+        self.fused = fused
         width = self.config.width
 
         def array(name, shape):
@@ -105,20 +113,22 @@ class Model:
                 array(f"{prefix}.weight", shape), array(f"{prefix}.bias", (shape[-1],))
             )
 
-        self.words = array("wte.weight", (self.config.vocabulary, width))
-        self.positions = array("wpe.weight", (self.config.context, width))
-        self.final_norm = parameters("ln_f", (width,))
         hidden_width = FEEDFORWARD_EXPANSION * width
-        self.blocks = tuple(
-            Block(
-                parameters(f"h.{index}.ln_1", (width,)),
-                parameters(f"h.{index}.attn.c_attn", (width, QKV_COMPONENTS * width)),
-                parameters(f"h.{index}.attn.c_proj", (width, width)),
-                parameters(f"h.{index}.ln_2", (width,)),
-                parameters(f"h.{index}.mlp.c_fc", (width, hidden_width)),
-                parameters(f"h.{index}.mlp.c_proj", (hidden_width, width)),
-            )
-            for index in range(self.config.layers)
+        self.weights = Weights(
+            array("wte.weight", (self.config.vocabulary, width)),
+            array("wpe.weight", (self.config.context, width)),
+            tuple(
+                Block(
+                    parameters(f"h.{index}.ln_1", (width,)),
+                    parameters(f"h.{index}.attn.c_attn", (width, QKV_COMPONENTS * width)),
+                    parameters(f"h.{index}.attn.c_proj", (width, width)),
+                    parameters(f"h.{index}.ln_2", (width,)),
+                    parameters(f"h.{index}.mlp.c_fc", (width, hidden_width)),
+                    parameters(f"h.{index}.mlp.c_proj", (hidden_width, width)),
+                )
+                for index in range(self.config.layers)
+            ),
+            parameters("ln_f", (width,)),
         )
 
     def __call__(self, tokens, trace=None):
@@ -137,11 +147,12 @@ class Model:
                 trace[name] = value.copy()
             return value
 
-        target = self.target
-        x = record(
-            "embedding", embed(ids.astype(np.int32), self.words, self.positions, target=target)
-        )
-        for index, block in enumerate(self.blocks):
+        target, weights = self.target, self.weights
+        ids = ids.astype(np.int32)
+        if self.fused:
+            return record("logits", fused.logits(ids, weights, self.config, target))
+        x = record("embedding", embed(ids, weights.words, weights.positions, target=target))
+        for index, block in enumerate(weights.blocks):
             x = record(
                 f"h.{index}.attention",
                 attend(
@@ -163,11 +174,11 @@ class Model:
                     target=target,
                 ),
             )
-        return record("logits", project(x, *self.final_norm, self.words, target=target))
+        return record("logits", project(x, *weights.final_norm, weights.words, target=target))
 
 
 def load_model(
-    directory: str | Path = DEFAULT_MODEL_DIRECTORY, target: str = CPU
+    directory: str | Path = DEFAULT_MODEL_DIRECTORY, target: str = CPU, fused: bool = False
 ) -> tuple[Model, Tokenizer]:
     directory = Path(directory)
     config = json.loads((directory / CONFIG_FILENAME).read_text(encoding="utf-8"))
@@ -178,7 +189,7 @@ def load_model(
         raise ValueError(
             f"Expected GPT-2 {ACTIVATION_FUNCTION} activation and epsilon={LAYER_NORM_EPSILON}"
         )
-    model = Model(load_file(str(directory / WEIGHTS_FILENAME)), config, target)
+    model = Model(load_file(str(directory / WEIGHTS_FILENAME)), config, target, fused)
     return model, Tokenizer.from_file(str(directory / TOKENIZER_FILENAME))
 
 

@@ -1,3 +1,5 @@
+from typing import NamedTuple
+
 import numpy as np
 import pytest
 
@@ -31,7 +33,7 @@ def test_broadcast_and_fusion(dtype):
     assert names(compiled.module).count("linalg.generic") == 3
     assert names(compiled.optimized).count("linalg.generic") == 1
     assert all(not name.startswith("linalg.") for name in names(compiled.lowered))
-    unfused = Compiled(function.function, compiled.types, {}, optimize=False)
+    unfused = Compiled(function.function, compiled.structure, {}, optimize=False)
     np.testing.assert_array_equal(compiled(x, gain, bias), unfused(x, gain, bias))
 
 
@@ -152,3 +154,50 @@ def test_scalar_tensor_inputs_and_outputs():
     reduced = jit(lambda x: x.sum())(np.arange(5, dtype=np.float32))
     assert reduced.shape == ()
     assert reduced == 10
+
+
+def test_numpy_functions_constants_and_trees():
+    class Scale(NamedTuple):
+        gain: np.ndarray
+        bias: np.ndarray
+
+    rng = np.random.default_rng(6)
+    x = rng.normal(size=(4, 6)).astype(np.float32)
+    scale = Scale(rng.normal(size=6).astype(np.float32), rng.normal(size=6).astype(np.float32))
+    mask = np.triu(np.ones((4, 3), np.float32) * -np.inf, k=1)
+
+    def function(x, params):
+        left, right = np.split(x, 2, axis=-1)
+        normalized = (left - np.mean(left, axis=-1, keepdims=True)) / np.sqrt(
+            np.var(left, axis=-1, keepdims=True) + 1e-5
+        )
+        scores = normalized @ right.transpose(1, 0)[:, :3] + mask
+        weights = np.exp(scores - np.max(scores, axis=-1, keepdims=True))
+        weights = weights / np.sum(weights, axis=-1, keepdims=True)
+        scale = params["scale"]
+        return scale.gain * (weights @ x[range(3)]) + scale.bias + x[[3, 0, 1, 2]]
+
+    def expected(x, params):
+        left, right = np.split(x, 2, axis=-1)
+        normalized = (left - left.mean(-1, keepdims=True)) / np.sqrt(
+            left.var(-1, keepdims=True) + 1e-5
+        )
+        scores = normalized @ right.T[:, :3] + mask
+        weights = np.exp(scores - scores.max(-1, keepdims=True))
+        weights /= weights.sum(-1, keepdims=True)
+        scale = params["scale"]
+        return scale.gain * (weights @ x[:3]) + scale.bias + x[[3, 0, 1, 2]]
+
+    params = {"scale": scale}
+    compiled = jit(function).compile(x, params)
+    np.testing.assert_allclose(compiled(x, params), expected(x, params), rtol=2e-6, atol=2e-6)
+    # The mask and the gather indices were captured, not passed, and became trailing arguments.
+    assert [c.dtype for c in compiled.constants] == [np.float32, np.int32]
+    with pytest.raises(TypeError, match="specialization"):
+        compiled(x, scale)
+
+
+def test_integer_lists_become_int32_indices():
+    table = np.arange(12, dtype=np.float32).reshape(4, 3)
+    function = jit(lambda ids, table: table[ids] + table[range(len(ids))])
+    np.testing.assert_array_equal(function([3, 0], table), table[[3, 0]] + table[:2])

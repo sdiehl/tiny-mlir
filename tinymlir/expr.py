@@ -39,6 +39,29 @@ class Op(StrEnum):
     MASK = auto()
 
 
+UFUNCS = {
+    np.add: Op.ADD,
+    np.subtract: Op.SUB,
+    np.multiply: Op.MUL,
+    np.divide: Op.DIV,
+    np.power: Op.POW,
+    np.exp: Op.EXP,
+    np.tanh: Op.TANH,
+    np.sqrt: Op.SQRT,
+    np.matmul: Op.MATMUL,
+}
+FUNCTIONS = {
+    np.mean: "mean",
+    np.var: "var",
+    np.sum: "sum",
+    np.max: "max",
+    np.amax: "max",
+    np.split: "split",
+    np.reshape: "reshape",
+    np.transpose: "transpose",
+}
+
+
 @dataclass(frozen=True)
 class TensorType:
     shape: tuple[int, ...]
@@ -53,14 +76,17 @@ class TensorType:
             raise TypeError(f"Unsupported dtype: {self.dtype}")
 
 
+def dims(args):
+    """Accept both NumPy spellings: f(a, b, c) and f((a, b, c))."""
+    return tuple(args[0]) if len(args) == 1 and not isinstance(args[0], int) else tuple(args)
+
+
 @dataclass(eq=False)
 class Expr:
     op: Op
     type: TensorType
     args: tuple[Expr, ...] = ()
     attr: object = None
-
-    __array_priority__ = 1000
 
     @property
     def shape(self):
@@ -72,6 +98,24 @@ class Expr:
 
     def __bool__(self):
         raise TypeError("Data-dependent Python control flow cannot be traced")
+
+    def __len__(self):
+        return self.shape[0]
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        if method != "__call__" or kwargs or ufunc not in UFUNCS:
+            return NotImplemented
+        dtype = next(i.dtype for i in inputs if isinstance(i, Expr))
+        first, *rest = (as_expr(i, dtype) for i in inputs)
+        if not rest:
+            return first.unary(UFUNCS[ufunc])
+        return first @ rest[0] if ufunc is np.matmul else first.binary(UFUNCS[ufunc], rest[0])
+
+    def __array_function__(self, func, types, args, kwargs):
+        if func not in FUNCTIONS:
+            return NotImplemented
+        x, *rest = args
+        return getattr(x, FUNCTIONS[func])(*rest, **kwargs)
 
     def astype(self, dtype):
         dtype = np.dtype(dtype)
@@ -120,7 +164,8 @@ class Expr:
         return self * -1
 
     def __matmul__(self, other):
-        if not isinstance(other, Expr) or len(self.shape) not in (2, 3):
+        other = as_expr(other, self.dtype)
+        if len(self.shape) not in (2, 3):
             raise ValueError("Matmul accepts matrices or equally batched matrices")
         if not np.issubdtype(self.dtype, np.floating) or not np.issubdtype(
             other.dtype, np.floating
@@ -159,8 +204,12 @@ class Expr:
     def mean(self, axis=-1, keepdims=False):
         return self.sum(axis, keepdims) / self.shape[axis]
 
-    def reshape(self, shape):
-        shape = tuple(shape)
+    def var(self, axis=-1, keepdims=False):
+        centered = self - self.mean(axis, keepdims=True)
+        return (centered * centered).mean(axis, keepdims)
+
+    def reshape(self, *shape):
+        shape = dims(shape)
         if prod(shape) != prod(self.shape) or any(d <= 0 for d in shape):
             raise ValueError("Reshape must preserve the number of elements")
         return (
@@ -169,8 +218,8 @@ class Expr:
             else Expr(Op.RESHAPE, TensorType(shape, self.dtype), (self,))
         )
 
-    def transpose(self, axes=None):
-        axes = tuple(reversed(range(len(self.shape)))) if axes is None else tuple(axes)
+    def transpose(self, *axes):
+        axes = tuple(reversed(range(len(self.shape)))) if not axes else dims(axes)
         if sorted(axes) != list(range(len(self.shape))):
             raise ValueError("Transpose requires a permutation of the axes")
         return Expr(
@@ -181,11 +230,24 @@ class Expr:
     def T(self):
         return self.transpose()
 
+    def split(self, sections, axis=-1):
+        axis %= len(self.shape)
+        size, remainder = divmod(self.shape[axis], sections)
+        if remainder:
+            raise ValueError("Split must divide the axis evenly")
+        return [
+            self[(slice(None),) * axis + (slice(i * size, (i + 1) * size),)]
+            for i in range(sections)
+        ]
+
     def __getitem__(self, key):
         keys = key if isinstance(key, tuple) else (key,)
+        keys = tuple(slice(k.start, k.stop, k.step) if isinstance(k, range) else k for k in keys)
+        if len(keys) == 1 and not isinstance(keys[0], slice):
+            return gather(self, keys[0])
         keys += (slice(None),) * (len(self.shape) - len(keys))
         if len(keys) != len(self.shape) or any(not isinstance(k, slice) for k in keys):
-            raise TypeError("Use static slices. gather() handles tensor indices")
+            raise TypeError("Index with static slices or a single int32 row vector")
         bounds = tuple(k.indices(d) for k, d in zip(keys, self.shape, strict=True))
         if any(step != 1 or stop <= start for start, stop, step in bounds):
             raise ValueError("Slices must be nonempty and have unit stride")
@@ -195,13 +257,21 @@ class Expr:
         )
 
 
+def as_array(value):
+    """Integer data becomes int32, the only integer type the kernels accept."""
+    array = np.asarray(value)
+    integer = np.issubdtype(array.dtype, np.integer) and array.dtype != INT32
+    return array.astype(INT32) if integer else array
+
+
 def as_expr(value, dtype):
     if isinstance(value, Expr):
         return value
-    if not np.isscalar(value):
-        raise TypeError("Pass arrays as function arguments, not captured constants")
-    dtype = np.asarray(value).dtype if isinstance(value, np.generic) else np.dtype(dtype)
-    return Expr(Op.CONSTANT, TensorType((), dtype), attr=value)
+    if np.isscalar(value):
+        dtype = np.asarray(value).dtype if isinstance(value, np.generic) else np.dtype(dtype)
+        return Expr(Op.CONSTANT, TensorType((), dtype), attr=value)
+    array = as_array(value)
+    return Expr(Op.CONSTANT, TensorType(array.shape, array.dtype), attr=array)
 
 
 def exp(x):
@@ -217,8 +287,9 @@ def sqrt(x):
 
 
 def gather(table, ids):
-    if ids.op != Op.INPUT:
-        raise ValueError("Gather indices must be a function argument")
+    ids = as_expr(ids, INT32)
+    if ids.op not in (Op.INPUT, Op.CONSTANT):
+        raise ValueError("Gather indices must be a function argument or a constant")
     if len(table.shape) != 2 or len(ids.shape) != 1 or ids.dtype != INT32:
         raise ValueError("Gather requires a matrix and an int32 index vector")
     return Expr(Op.GATHER, TensorType((ids.shape[0], table.shape[1]), table.dtype), (table, ids))

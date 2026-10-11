@@ -19,7 +19,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.tokens < 0:
         parser.error("--tokens must be nonnegative")
-    model, tokenizer = load_model(args.model, args.target)
+    model, tokenizer = load_model(args.model, args.target, args.fused)
     print(generate(model, tokenizer, args.prompt, args.tokens))
 
 

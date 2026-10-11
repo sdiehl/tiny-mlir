@@ -44,6 +44,8 @@ jobs:
           version: "0.11.15"
           python-version: "3.12"
           enable-cache: true
+      - run: sudo apt-get install -y libopenblas-dev
+        if: runner.os == 'Linux'
       - run: uv sync --locked
       - run: uv pip check
       - run: uv run --locked pytest -q
@@ -60,6 +62,8 @@ jobs:
           version: "0.11.15"
           python-version: "3.12"
           enable-cache: true
+      - run: sudo apt-get install -y libopenblas-dev
       - run: uv sync --locked
       - run: uv run --locked python fetch_model.py
       - run: uv run --locked python verify.py
+      - run: uv run --locked python verify.py --fused
