@@ -11,3 +11,4 @@ dist/
 *.dylib
 *.bc
 .DS_Store
+UPDATES.md
