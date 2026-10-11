@@ -21,6 +21,10 @@ Three modules build on that path without changing it. `blas.py` hands every buff
 
 Requires Linux x86_64, an NVIDIA driver, and a GPU of compute capability sm_75 (Turing) or newer.
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sdiehl/tiny-mlir/blob/main/Colab.ipynb)
+
+[`Colab.ipynb`](Colab.ipynb) installs the CUDA build, inspects the outlined kernels and their PTX, generates on the GPU and runs the reference check on a T4.
+
 ```bash
 uv sync
 uv run python fetch_model.py model
